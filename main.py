@@ -6,9 +6,9 @@ import threading
 import pandas as pd
 import os
 
-from utils import (get_icon_img, get_like_img, get_excel_files)
+from utils import (get_icon_img, get_like_img)
 
-version = "v1.0.0"
+version = "v1.0.1"
 
 
 class mergeExcel():
@@ -19,8 +19,8 @@ class mergeExcel():
         self.master.geometry("450x350")
         self.master.iconphoto(False, ImageTk.PhotoImage(data=get_icon_img()))
 
-        self.table_dir = tk.StringVar()
-        self.table_dir.set("")
+        self.file_paths_str = tk.StringVar()
+        self.file_paths_str.set("")
         self.merge_way = tk.IntVar()
         self.merge_way.set(0)
         self.header_row = tk.IntVar()
@@ -41,11 +41,11 @@ class mergeExcel():
         self.notebook.add(self.tab1, text="合并")
 
         # 选择路径
-        select_dir_frame = ttk.Frame(self.tab1)
-        select_dir_frame.pack(pady=(20, 0))
-        ttk.Label(select_dir_frame, text="路径:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(select_dir_frame, width=25, textvariable=self.table_dir).pack(side=tk.LEFT, padx=5)
-        ttk.Button(select_dir_frame, text="选择", command=self.select_dir, style="success").pack(side=tk.LEFT, padx=5)
+        select_frame = ttk.Frame(self.tab1)
+        select_frame.pack(pady=(20, 0))
+        ttk.Label(select_frame, text="路径:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(select_frame, width=25, textvariable=self.file_paths_str).pack(side=tk.LEFT, padx=5)
+        ttk.Button(select_frame, text="选择", command=self.select_files, style="success").pack(side=tk.LEFT, padx=5)
 
         # 合并方式
         merge_way_frame = ttk.Frame(self.tab1)
@@ -81,8 +81,9 @@ class mergeExcel():
         result_frame.pack(pady=(10, 0))
         ttk.Label(result_frame, text="处理结果:").grid(row=0, column=0, padx=(10,0))
         ttk.Label(result_frame, text="").grid(row=1, column=0)
+        ttk.Label(result_frame, text="").grid(row=2, column=0)
         self.result_label = ttk.Label(result_frame, textvariable=self.merge_result_text, width=32, wraplength=320)
-        self.result_label.grid(row=0, column=1, padx=(0,10), rowspan=2, sticky=tk.NW)
+        self.result_label.grid(row=0, column=1, padx=(0,10), rowspan=3, sticky=tk.NW)
 
         # 赞赏tab
         self.tab4 = ttk.Frame(self.notebook)
@@ -91,13 +92,14 @@ class mergeExcel():
         ttk.Label(self.tab4, image=self.like_img).pack(pady=(5, 0))
         tk.Label(self.tab4, text=version, font=("Arial", 8), state=tk.DISABLED).pack(side=tk.BOTTOM, pady=5)
 
-    def select_dir(self):
-        # 选择文件夹并显示特定后缀的文件
+    def select_files(self):
         self.progress_bar.config(value=0)
         self.process_text.set("0%")
         self.merge_result_text.set("待处理")
-        file_path = tk.filedialog.askdirectory()
-        self.table_dir.set(file_path)
+        file_types = [("Excel files", "*.xlsx;*.xls")]
+        file_paths = tk.filedialog.askopenfilenames(title="选择文件", filetypes=file_types)
+        if file_paths:
+            self.file_paths_str.set(";".join(file_paths))
 
     def switch_header_row_state(self):
         header_row_state = tk.DISABLED if self.merge_way.get() == 1 else tk.NORMAL
@@ -105,7 +107,7 @@ class mergeExcel():
         self.header_row_spinbox.config(state=header_row_state)
 
     def merge_excel(self):
-        excel_files = get_excel_files(self.table_dir.get())
+        excel_files = self.file_paths_str.get().split(";")
 
         if len(excel_files) == 0:
             self.running = False
@@ -123,8 +125,13 @@ class mergeExcel():
             process_value = i * 95 // len(excel_files)
             self.progress_bar.config(value=process_value)
             self.process_text.set(f"{process_value}%")
-            df = pd.read_excel(excel_file, sheet_name=0, header=excel_header)
             sheet_name = os.path.splitext(os.path.basename(excel_file))[0]
+            if not os.path.isfile(excel_file):
+                self.running = False
+                self.process_text.set("0%")
+                self.progress_bar.config(value=0)
+                self.merge_result_text.set(f"失败，{sheet_name} 文件不存在")
+            df = pd.read_excel(excel_file, sheet_name=0, header=excel_header)
             # 若按行合并，则检查表头是否一致
             if i > 0 and self.merge_way.get() == 0:
                 if not df_list[0].columns.equals(df.columns):
@@ -136,7 +143,7 @@ class mergeExcel():
             sheet_name_list.append(sheet_name)
             df_list.append(df)
 
-        self.out_merge_file = self.table_dir.get() + "_merged.xlsx"
+        self.out_merge_file = "merged.xlsx"
         if self.merge_way.get() == 0:
             # 按行合并
             df_merge = pd.concat(df_list, ignore_index=True)
@@ -153,7 +160,7 @@ class mergeExcel():
         self.progress_bar.config(value=100)
         self.process_text.set("100%")
         self.running = False
-        self.merge_result_text.set("完成，输出文件 " + os.path.basename(self.out_merge_file))
+        self.merge_result_text.set("完成，输出文件 " + os.path.join(os.getcwd(), self.out_merge_file))
 
     def start(self):
         if not self.running:
