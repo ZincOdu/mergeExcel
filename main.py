@@ -16,7 +16,7 @@ class mergeExcel():
         self.master = master
         self.master.title("merge excel")
         self.master.resizable(False, False)
-        self.master.geometry("450x320")
+        self.master.geometry("450x350")
         self.master.iconphoto(False, ImageTk.PhotoImage(data=get_icon_img()))
 
         self.table_dir = tk.StringVar()
@@ -79,16 +79,17 @@ class mergeExcel():
         # 结果提示
         result_frame = ttk.Frame(self.tab1)
         result_frame.pack(pady=(10, 0))
-        ttk.Label(result_frame, text="处理结果:").pack(side=tk.LEFT, padx=(10,0))
-        self.result_label = ttk.Label(result_frame, textvariable=self.merge_result_text, width=32)
-        self.result_label.pack(side=tk.LEFT, padx=5)
+        ttk.Label(result_frame, text="处理结果:").grid(row=0, column=0, padx=(10,0))
+        ttk.Label(result_frame, text="").grid(row=1, column=0)
+        self.result_label = ttk.Label(result_frame, textvariable=self.merge_result_text, width=32, wraplength=320)
+        self.result_label.grid(row=0, column=1, padx=(0,10), rowspan=2, sticky=tk.NW)
 
         # 赞赏tab
         self.tab4 = ttk.Frame(self.notebook)
         self.notebook.add(self.tab4, text="赞赏")
         self.like_img = ImageTk.PhotoImage(data=get_like_img())
         ttk.Label(self.tab4, image=self.like_img).pack(pady=(5, 0))
-        tk.Label(self.tab4, text=version, font=("Arial", 8), state=tk.DISABLED).pack(pady=(5, 0))
+        tk.Label(self.tab4, text=version, font=("Arial", 8), state=tk.DISABLED).pack(side=tk.BOTTOM, pady=5)
 
     def select_dir(self):
         # 选择文件夹并显示特定后缀的文件
@@ -123,7 +124,16 @@ class mergeExcel():
             self.progress_bar.config(value=process_value)
             self.process_text.set(f"{process_value}%")
             df = pd.read_excel(excel_file, sheet_name=0, header=excel_header)
-            sheet_name_list.append(os.path.splitext(os.path.basename(excel_file))[0])
+            sheet_name = os.path.splitext(os.path.basename(excel_file))[0]
+            # 若按行合并，则检查表头是否一致
+            if i > 0 and self.merge_way.get() == 0:
+                if not df_list[0].columns.equals(df.columns):
+                    self.running = False
+                    self.process_text.set("0%")
+                    self.progress_bar.config(value=0)
+                    self.merge_result_text.set(f"失败，{sheet_name_list[0]} 与 {sheet_name} 表头不一致")
+                    return
+            sheet_name_list.append(sheet_name)
             df_list.append(df)
 
         self.out_merge_file = self.table_dir.get() + "_merged.xlsx"
